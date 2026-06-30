@@ -179,8 +179,8 @@ export default function DataEntryPage() {
       const cleaned = rawValue.replace(/[$,%]/g, '').trim()
       numValue = parseFloat(cleaned)
       if (isNaN(numValue)) numValue = null
-      // Convert percentage input to decimal if metric type is percentage
-      if (numValue !== null && metricType === 'percentage' && numValue > 1) {
+      // Convert percentage/roi input to decimal if metric type is percentage or roi
+      if (numValue !== null && (metricType === 'percentage' || metricType === 'roi') && numValue > 1) {
         numValue = numValue / 100
       }
     }
@@ -384,8 +384,8 @@ export default function DataEntryPage() {
                               type="text"
                               value={
                                 currentEntry?.value !== null && currentEntry?.value !== undefined
-                                  ? init.metric_type === 'percentage'
-                                    ? (currentEntry.value * 100).toString()
+                                  ? init.metric_type === 'percentage' || init.metric_type === 'roi'
+                                    ? (currentEntry.value * 100).toFixed(0)
                                     : currentEntry.value.toString()
                                   : ''
                               }
@@ -393,7 +393,7 @@ export default function DataEntryPage() {
                               placeholder={init.metric_type === 'percentage' ? '0-100' : '0'}
                               className="w-full border rounded px-2 py-1 text-center text-sm"
                             />
-                            {init.metric_type === 'percentage' && (
+                            {(init.metric_type === 'percentage' || init.metric_type === 'roi') && (
                               <span className="text-xs text-gray-400">%</span>
                             )}
                           </td>
