@@ -132,20 +132,40 @@ export default function AdminEntryPage() {
         const [initId, month] = key.split('|')
         return {
           initiative_id: initId,
-          product_group_id: null,
           month: parseInt(month),
           year: CURRENT_YEAR,
           value: data.value,
           notes: data.notes,
-          updated_at: new Date().toISOString(),
         }
       })
     for (const entry of entriesToSave) {
-      await supabase
+      // Try update first (works with partial unique indexes)
+      const { data: updated } = await supabase
         .from('monthly_entries')
-        .upsert(entry, {
-          onConflict: 'initiative_id,product_group_id,month,year'
+        .update({
+          value: entry.value,
+          notes: entry.notes,
+          updated_at: new Date().toISOString(),
         })
+        .eq('initiative_id', entry.initiative_id)
+        .is('product_group_id', null)
+        .eq('month', entry.month)
+        .eq('year', CURRENT_YEAR)
+        .select()
+      // If no existing row was updated, insert a new one
+      if (!updated || updated.length === 0) {
+        await supabase
+          .from('monthly_entries')
+          .insert({
+            initiative_id: entry.initiative_id,
+            product_group_id: null,
+            month: entry.month,
+            year: CURRENT_YEAR,
+            value: entry.value,
+            notes: entry.notes,
+            updated_at: new Date().toISOString(),
+          })
+      }
     }
     setLastSaved(new Date().toLocaleTimeString())
     setSaving(false)
