@@ -1,21 +1,17 @@
 'use client'
-
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { getStatusColor, getStatusDotClass, getStatusClasses, formatValue, calculateAggregate, MONTHS, CURRENT_YEAR } from '@/lib/utils'
-
 type ProductGroup = {
   id: string
   name: string
   abbreviation: string
 }
-
 type SubmissionStatus = {
   product_group_id: string
   submitted_at: string
   submitted_by: string | null
 }
-
 type HeatmapCell = {
   initiative_id: string
   initiative_name: string
@@ -27,39 +23,32 @@ type HeatmapCell = {
   values: Record<string, number | null> // PG id -> value
   aggregate: number | null
 }
-
 export default function DashboardPage() {
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1)
   const [productGroups, setProductGroups] = useState<ProductGroup[]>([])
   const [submissions, setSubmissions] = useState<Map<string, SubmissionStatus>>(new Map())
   const [heatmapData, setHeatmapData] = useState<HeatmapCell[]>([])
   const [loading, setLoading] = useState(true)
-
   useEffect(() => {
     loadDashboard()
   }, [selectedMonth])
-
   async function loadDashboard() {
     setLoading(true)
-
     // Load product groups
     const { data: pgData } = await supabase
       .from('product_groups')
       .select('*')
       .order('display_order')
     if (pgData) setProductGroups(pgData)
-
     // Load submissions for this month
     const { data: subData } = await supabase
       .from('submissions')
       .select('*')
       .eq('month', selectedMonth)
       .eq('year', CURRENT_YEAR)
-
     const subMap = new Map<string, SubmissionStatus>()
     subData?.forEach((s) => subMap.set(s.product_group_id, s))
     setSubmissions(subMap)
-
     // Load all initiatives with their categories (product_group section only)
     const { data: initiatives } = await supabase
       .from('initiatives')
@@ -69,32 +58,26 @@ export default function DashboardPage() {
       `)
       .eq('categories.section', 'product_group')
       .order('display_order')
-
     // Load goals for this month
     const { data: goalData } = await supabase
       .from('initiative_goals')
       .select('initiative_id, target_value')
       .eq('month', selectedMonth)
       .eq('year', CURRENT_YEAR)
-
     const goalMap = new Map<string, number | null>()
     goalData?.forEach((g) => goalMap.set(g.initiative_id, g.target_value))
-
     // Load thresholds
     const { data: thresholdData } = await supabase
       .from('initiative_thresholds')
       .select('initiative_id, green_min, yellow_min')
-
     const thresholdMap = new Map<string, { green_min: number; yellow_min: number }>()
     thresholdData?.forEach((t) => thresholdMap.set(t.initiative_id, { green_min: t.green_min, yellow_min: t.yellow_min }))
-
     // Load all entries for this month
     const { data: entryData } = await supabase
       .from('monthly_entries')
       .select('initiative_id, product_group_id, value')
       .eq('month', selectedMonth)
       .eq('year', CURRENT_YEAR)
-
     // Build entry lookup: initiative_id -> { pg_id -> value }
     const entryLookup = new Map<string, Map<string, number | null>>()
     entryData?.forEach((e) => {
@@ -103,12 +86,10 @@ export default function DashboardPage() {
       }
       entryLookup.get(e.initiative_id)!.set(e.product_group_id, e.value)
     })
-
     // Load assignments
     const { data: assignmentData } = await supabase
       .from('initiative_assignments')
       .select('initiative_id, product_group_id')
-
     const assignmentLookup = new Map<string, Set<string>>()
     assignmentData?.forEach((a) => {
       if (!assignmentLookup.has(a.initiative_id)) {
@@ -116,7 +97,6 @@ export default function DashboardPage() {
       }
       assignmentLookup.get(a.initiative_id)!.add(a.product_group_id)
     })
-
     // Build heatmap
     const heatmap: HeatmapCell[] = (initiatives || [])
       .sort((a: any, b: any) => 
@@ -127,18 +107,15 @@ export default function DashboardPage() {
         const assignedPGs = assignmentLookup.get(init.id) || new Set()
         const pgEntries = entryLookup.get(init.id) || new Map()
         const threshold = thresholdMap.get(init.id) || { green_min: 0.85, yellow_min: 0.65 }
-
         pgData?.forEach((pg) => {
           if (assignedPGs.has(pg.id)) {
             values[pg.id] = pgEntries.get(pg.id) ?? null
           }
         })
-
         const validValues = Object.values(values).filter((v): v is number => v !== null)
         const aggregate = validValues.length > 0
           ? validValues.reduce((s, v) => s + v, 0) / validValues.length
           : null
-
         return {
           initiative_id: init.id,
           initiative_name: init.name,
@@ -151,16 +128,13 @@ export default function DashboardPage() {
           aggregate,
         }
       })
-
     setHeatmapData(heatmap)
     setLoading(false)
   }
-
   // Calculate summary stats
   const totalCells = heatmapData.reduce((count, cell) => {
     return count + Object.keys(cell.values).length
   }, 0)
-
   const statusCounts = { green: 0, yellow: 0, red: 0, gray: 0 }
   heatmapData.forEach((cell) => {
     Object.values(cell.values).forEach((value) => {
@@ -168,10 +142,8 @@ export default function DashboardPage() {
       statusCounts[status]++
     })
   })
-
   const submittedCount = submissions.size
   const totalPGs = productGroups.length
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -191,7 +163,6 @@ export default function DashboardPage() {
           ))}
         </select>
       </div>
-
       {loading ? (
         <div className="text-center py-12 text-gray-500">Loading dashboard...</div>
       ) : (
@@ -248,7 +219,6 @@ export default function DashboardPage() {
               })}
             </div>
           </div>
-
           {/* Summary KPIs */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <KPICard
@@ -280,7 +250,6 @@ export default function DashboardPage() {
               bgColor="bg-gray-50"
             />
           </div>
-
           {/* Heatmap Matrix */}
           <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
             <div className="px-4 py-3 border-b bg-gray-50">
@@ -303,7 +272,6 @@ export default function DashboardPage() {
                   {heatmapData.map((cell, idx) => {
                     const prevCategory = idx > 0 ? heatmapData[idx - 1].category_name : null
                     const showCategoryHeader = cell.category_name !== prevCategory
-
                     return (
                       <>
                         {showCategoryHeader && (
@@ -326,7 +294,7 @@ export default function DashboardPage() {
                                 getStatusColor(cell.aggregate, cell.goal, cell.green_min, cell.yellow_min)
                               )}`}
                             >
-                              {formatValue(cell.aggregate, cell.metric_type)}
+                              {formatValue(cell.aggregate, cell.metric_type, cell.category_name === 'Customer Profile System' ? 2 : 0)}
                             </div>
                           </td>
                           {productGroups.map((pg) => {
@@ -343,7 +311,7 @@ export default function DashboardPage() {
                             return (
                               <td key={pg.id} className="text-center px-1 py-1">
                                 <div className={`rounded px-1 py-0.5 text-xs font-medium ${getStatusClasses(status)}`}>
-                                  {formatValue(value, cell.metric_type)}
+                                  {formatValue(value, cell.metric_type, cell.category_name === 'Customer Profile System' ? 2 : 0)}
                                 </div>
                               </td>
                             )
@@ -361,7 +329,6 @@ export default function DashboardPage() {
     </div>
   )
 }
-
 function KPICard({
   label,
   value,
