@@ -1,7 +1,7 @@
 'use client'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
-import { getStatusColor, getStatusDotClass, formatValue, MONTHS, CURRENT_YEAR } from '@/lib/utils'
+import { MONTHS, CURRENT_YEAR } from '@/lib/utils'
 type Initiative = {
   id: string
   name: string
@@ -16,9 +16,7 @@ type EntryData = {
 }
 export default function AdminEntryPage() {
   const [initiatives, setInitiatives] = useState<Initiative[]>([])
-  const [entries, setEntries] = useState<Map<string, EntryData>>(new Map()) // key: initId|month
-  const [goals, setGoals] = useState<Map<string, number | null>>(new Map()) // key: initId|month
-  const [thresholds, setThresholds] = useState<Map<string, { green_min: number; yellow_min: number }>>(new Map())
+  const [entries, setEntries] = useState<Map<string, EntryData>>(new Map())
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [lastSaved, setLastSaved] = useState<string | null>(null)
@@ -27,7 +25,6 @@ export default function AdminEntryPage() {
   }, [])
   async function loadData() {
     setLoading(true)
-    // Load admin initiatives
     const { data: initData } = await supabase
       .from('initiatives')
       .select(`
@@ -36,7 +33,6 @@ export default function AdminEntryPage() {
       `)
       .eq('categories.section', 'admin')
       .order('display_order')
-    // Load the EU-Chennai initiative (SSDA-level override entry)
     const { data: euChenData } = await supabase
       .from('initiatives')
       .select(`
@@ -67,7 +63,6 @@ export default function AdminEntryPage() {
       })
     }
     setInitiatives(allInitiatives)
-    // Load all entries for admin initiatives (no product_group_id)
     const initIds = allInitiatives.map(i => i.id)
     const { data: entryData } = await supabase
       .from('monthly_entries')
@@ -80,25 +75,6 @@ export default function AdminEntryPage() {
       entryMap.set(`${e.initiative_id}|${e.month}`, { value: e.value, notes: e.notes })
     })
     setEntries(entryMap)
-    // Load goals
-    const { data: goalData } = await supabase
-      .from('initiative_goals')
-      .select('initiative_id, month, target_value')
-      .eq('year', CURRENT_YEAR)
-    const goalMap = new Map<string, number | null>()
-    goalData?.forEach((g) => {
-      goalMap.set(`${g.initiative_id}|${g.month}`, g.target_value)
-    })
-    setGoals(goalMap)
-    // Load thresholds
-    const { data: thresholdData } = await supabase
-      .from('initiative_thresholds')
-      .select('initiative_id, green_min, yellow_min')
-    const thresholdMap = new Map<string, { green_min: number; yellow_min: number }>()
-    thresholdData?.forEach((t) => {
-      thresholdMap.set(t.initiative_id, { green_min: t.green_min, yellow_min: t.yellow_min })
-    })
-    setThresholds(thresholdMap)
     setLoading(false)
   }
   function updateValue(initId: string, month: number, rawValue: string, metricType: string) {
@@ -139,7 +115,6 @@ export default function AdminEntryPage() {
         }
       })
     for (const entry of entriesToSave) {
-      // Try update first (works with partial unique indexes)
       const { data: updated } = await supabase
         .from('monthly_entries')
         .update({
@@ -152,7 +127,6 @@ export default function AdminEntryPage() {
         .eq('month', entry.month)
         .eq('year', CURRENT_YEAR)
         .select()
-      // If no existing row was updated, insert a new one
       if (!updated || updated.length === 0) {
         await supabase
           .from('monthly_entries')
@@ -170,14 +144,11 @@ export default function AdminEntryPage() {
     setLastSaved(new Date().toLocaleTimeString())
     setSaving(false)
   }
-  // For quarterly initiatives, determine which months to show
   function getDisplayMonths(frequency: 'monthly' | 'quarterly'): number[] {
     if (frequency === 'monthly') return [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
-    // Quarterly: show end-of-quarter months
     return [3, 6, 9, 12]
   }
   if (loading) return <div className="text-center py-12 text-gray-500">Loading...</div>
-  // Split initiatives into admin and SSDA override sections
   const adminInitiatives = initiatives.filter(i => i.section === 'admin')
   const ssdaOverrides = initiatives.filter(i => i.section === 'ssda_override')
   return (
@@ -200,7 +171,6 @@ export default function AdminEntryPage() {
           </button>
         </div>
       </div>
-      {/* SSDA Override Section (EU-Chennai) */}
       {ssdaOverrides.length > 0 && (
         <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
           <div className="bg-amber-50 px-4 py-3 border-b">
@@ -234,32 +204,21 @@ export default function AdminEntryPage() {
                       const month = monthIdx + 1
                       const key = `${init.id}|${month}`
                       const entry = entries.get(key)
-                      const goal = goals.get(key)
-                      const threshold = thresholds.get(init.id)
-                      const status = getStatusColor(
-                        entry?.value ?? null,
-                        goal ?? null,
-                        threshold?.green_min,
-                        threshold?.yellow_min
-                      )
                       return (
                         <td key={month} className="text-center px-1 py-2">
-                          <div className="flex items-center gap-0.5">
-                            <input
-                              type="text"
-                              value={
-                                entry?.value !== null && entry?.value !== undefined
-                                  ? init.metric_type === 'percentage'
-                                    ? (entry.value * 100).toString()
-                                    : entry.value.toString()
-                                  : ''
-                              }
-                              onChange={(e) => updateValue(init.id, month, e.target.value, init.metric_type)}
-                              className="w-14 border rounded px-1 py-0.5 text-center text-xs"
-                              placeholder="-"
-                            />
-                            <div className={`w-2 h-2 rounded-full flex-shrink-0 ${getStatusDotClass(status)}`} />
-                          </div>
+                          <input
+                            type="text"
+                            value={
+                              entry?.value !== null && entry?.value !== undefined
+                                ? init.metric_type === 'percentage'
+                                  ? (entry.value * 100).toString()
+                                  : entry.value.toString()
+                                : ''
+                            }
+                            onChange={(e) => updateValue(init.id, month, e.target.value, init.metric_type)}
+                            className="w-14 border rounded px-1 py-0.5 text-center text-xs"
+                            placeholder="-"
+                          />
                         </td>
                       )
                     })}
@@ -270,7 +229,6 @@ export default function AdminEntryPage() {
           </div>
         </div>
       )}
-      {/* Admin Initiatives Table */}
       <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
         <div className="bg-ford-blue/5 px-4 py-3 border-b">
           <h2 className="font-semibold text-ford-blue">Caroline&apos;s Administrative Initiatives</h2>
@@ -311,35 +269,24 @@ export default function AdminEntryPage() {
                       const isActive = displayMonths.includes(month)
                       const key = `${init.id}|${month}`
                       const entry = entries.get(key)
-                      const goal = goals.get(key)
-                      const threshold = thresholds.get(init.id)
-                      const status = getStatusColor(
-                        entry?.value ?? null,
-                        goal ?? null,
-                        threshold?.green_min,
-                        threshold?.yellow_min
-                      )
                       if (!isActive) {
                         return <td key={month} className="text-center px-1 py-2 bg-gray-50" />
                       }
                       return (
                         <td key={month} className="text-center px-1 py-2">
-                          <div className="flex items-center gap-0.5">
-                            <input
-                              type="text"
-                              value={
-                                entry?.value !== null && entry?.value !== undefined
-                                  ? init.metric_type === 'percentage'
-                                    ? (entry.value * 100).toString()
-                                    : entry.value.toString()
-                                  : ''
-                              }
-                              onChange={(e) => updateValue(init.id, month, e.target.value, init.metric_type)}
-                              className="w-14 border rounded px-1 py-0.5 text-center text-xs"
-                              placeholder="-"
-                            />
-                            <div className={`w-2 h-2 rounded-full flex-shrink-0 ${getStatusDotClass(status)}`} />
-                          </div>
+                          <input
+                            type="text"
+                            value={
+                              entry?.value !== null && entry?.value !== undefined
+                                ? init.metric_type === 'percentage'
+                                  ? (entry.value * 100).toString()
+                                  : entry.value.toString()
+                                : ''
+                            }
+                            onChange={(e) => updateValue(init.id, month, e.target.value, init.metric_type)}
+                            className="w-14 border rounded px-1 py-0.5 text-center text-xs"
+                            placeholder="-"
+                          />
                         </td>
                       )
                     })}
@@ -350,7 +297,6 @@ export default function AdminEntryPage() {
           </table>
         </div>
       </div>
-      {/* Notes Section */}
       <div className="bg-white rounded-lg shadow-sm border p-4">
         <h2 className="font-semibold mb-4">Notes by Initiative</h2>
         <div className="space-y-4">
