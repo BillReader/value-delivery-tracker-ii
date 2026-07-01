@@ -73,6 +73,7 @@ export default function TrendsPage() {
     const selectedInit = initiatives.find((i) => i.id === selectedInitiative)
     const isDollar = selectedInit?.metric_type === 'dollar'
     const isFinancialCategory = selectedInit?.category_name === 'Direct Financial Impact'
+    const isTotalBenefits = isFinancialCategory && (selectedInit?.name.includes('Total Benefits') || false)
     // Load all entries for this initiative across all months
     const { data: entries } = await supabase
       .from('monthly_entries')
@@ -90,9 +91,9 @@ export default function TrendsPage() {
       .order('month')
     const goalMap = new Map<number, number | null>()
     goals?.forEach((g) => goalMap.set(g.month, g.target_value))
-    // If this is Total Benefits in SSDA Aggregate mode, also load Costs
+    // If this is Total Benefits, also load Costs (for SSDA aggregate AND individual PG views)
     let costEntries: any[] = []
-    if (isFinancialCategory && selectedPG === 'all' && selectedInit?.name.includes('Total Benefits')) {
+    if (isTotalBenefits && selectedPG !== 'compare') {
       const costsInit = initiatives.find(i =>
         i.category_name === 'Direct Financial Impact' && i.name.includes('Projected Costs')
       )
@@ -118,21 +119,25 @@ export default function TrendsPage() {
         point['Goal'] = goalVal
       }
       if (selectedPG === 'all') {
-        // Show SSDA aggregate: SUM for dollar metrics, AVERAGE for others
+        // SSDA aggregate: SUM for dollar metrics, AVERAGE for others
         const values = monthEntries.map((e) => e.value).filter((v): v is number => v !== null)
         if (values.length > 0) {
-          point['SSDA Aggregate'] = isDollar
+          const aggValue = isDollar
             ? values.reduce((s, v) => s + v, 0)
             : values.reduce((s, v) => s + v, 0) / values.length
-        } else {
-          point['SSDA Aggregate'] = null
+          // Use specific label for Total Benefits, generic for others
+          if (isTotalBenefits) {
+            point['SSDA Total Benefits'] = aggValue
+          } else {
+            point['SSDA Aggregate'] = aggValue
+          }
         }
-        // Add cost line if applicable
-        if (costEntries.length > 0) {
+        // Add cost line for Total Benefits view
+        if (isTotalBenefits && costEntries.length > 0) {
           const monthCosts = costEntries.filter((e) => e.month === month)
           const costValues = monthCosts.map((e) => e.value).filter((v): v is number => v !== null)
           if (costValues.length > 0) {
-            point['Total Costs'] = costValues.reduce((s, v) => s + v, 0)
+            point['SSDA Total Costs'] = costValues.reduce((s, v) => s + v, 0)
           }
         }
       } else if (selectedPG === 'compare') {
@@ -142,10 +147,23 @@ export default function TrendsPage() {
           point[pg.abbreviation] = entry?.value ?? null
         })
       } else {
-        // Show single PG
-        const pg = productGroups.find((p) => p.id === selectedPG)
-        const entry = monthEntries.find((e) => e.product_group_id === selectedPG)
-        if (pg) point[pg.abbreviation] = entry?.value ?? null
+        // Individual PG view
+        if (isTotalBenefits) {
+          // For Total Benefits: show both benefits and costs for this PG
+          const entry = monthEntries.find((e) => e.product_group_id === selectedPG)
+          point['Total Benefits'] = entry?.value ?? null
+          if (costEntries.length > 0) {
+            const costEntry = costEntries.find((e) => e.product_group_id === selectedPG && e.month === month)
+            if (costEntry?.value !== null && costEntry?.value !== undefined) {
+              point['Total Costs'] = costEntry.value
+            }
+          }
+        } else {
+          // Non-financial: show PG abbreviation as before
+          const pg = productGroups.find((p) => p.id === selectedPG)
+          const entry = monthEntries.find((e) => e.product_group_id === selectedPG)
+          if (pg) point[pg.abbreviation] = entry?.value ?? null
+        }
       }
       return point
     })
@@ -155,6 +173,11 @@ export default function TrendsPage() {
   const isPercentage = selectedInit?.metric_type === 'percentage'
   const isDollar = selectedInit?.metric_type === 'dollar'
   const isROI = selectedInit?.metric_type === 'roi'
+  const isTotalBenefits = selectedInit?.category_name === 'Direct Financial Impact' && (selectedInit?.name.includes('Total Benefits') || false)
+  // Determine which cost line key is in use
+  const hasSSDACostLine = chartData.some((d) => d['SSDA Total Costs'] !== undefined)
+  const hasPGCostLine = chartData.some((d) => d['Total Costs'] !== undefined)
+  const hasCostLine = hasSSDACostLine || hasPGCostLine
   // Format Y axis ticks based on metric type
   function formatYAxis(v: number): string {
     if (isPercentage || isROI) return `${(v * 100).toFixed(0)}%`
@@ -179,8 +202,6 @@ export default function TrendsPage() {
     acc[init.category_name].push(init)
     return acc
   }, {} as Record<string, Initiative[]>)
-  // Check if cost line exists in chart data
-  const hasCostLine = chartData.some((d) => d['Total Costs'] !== undefined)
   if (loading) return <div className="text-center py-12 text-gray-500">Loading...</div>
   return (
     <div className="space-y-6">
@@ -231,7 +252,7 @@ export default function TrendsPage() {
       <div className="bg-white rounded-lg shadow-sm border p-6">
         <h3 className="font-semibold text-lg mb-4">
           {selectedInit?.name || 'Select an initiative'}
-          {hasCostLine && <span className="text-sm font-normal text-gray-500 ml-2">(with Total Costs overlay)</span>}
+          {hasCostLine && <span className="text-sm font-normal text-gray-500 ml-2">(with costs overlay)</span>}
         </h3>
         <div className="h-[400px]">
           <ResponsiveContainer width="100%" height="100%">
@@ -253,8 +274,18 @@ export default function TrendsPage() {
                   connectNulls
                 />
               )}
-              {/* Data lines */}
-              {selectedPG === 'all' && (
+              {/* === SSDA Aggregate View === */}
+              {selectedPG === 'all' && isTotalBenefits && (
+                <Line
+                  type="monotone"
+                  dataKey="SSDA Total Benefits"
+                  stroke={COLORS[0]}
+                  strokeWidth={2}
+                  dot
+                  connectNulls
+                />
+              )}
+              {selectedPG === 'all' && !isTotalBenefits && (
                 <Line
                   type="monotone"
                   dataKey="SSDA Aggregate"
@@ -264,17 +295,18 @@ export default function TrendsPage() {
                   connectNulls
                 />
               )}
-              {/* Cost overlay line */}
-              {hasCostLine && (
+              {/* SSDA cost overlay */}
+              {hasSSDACostLine && (
                 <Line
                   type="monotone"
-                  dataKey="Total Costs"
+                  dataKey="SSDA Total Costs"
                   stroke="#ef4444"
                   strokeWidth={2}
                   dot
                   connectNulls
                 />
               )}
+              {/* === Compare All PGs View === */}
               {selectedPG === 'compare' &&
                 productGroups.map((pg, idx) => (
                   <Line
@@ -287,7 +319,29 @@ export default function TrendsPage() {
                     connectNulls
                   />
                 ))}
-              {selectedPG !== 'all' && selectedPG !== 'compare' && (
+              {/* === Individual PG View === */}
+              {selectedPG !== 'all' && selectedPG !== 'compare' && isTotalBenefits && (
+                <Line
+                  type="monotone"
+                  dataKey="Total Benefits"
+                  stroke={COLORS[0]}
+                  strokeWidth={2}
+                  dot
+                  connectNulls
+                />
+              )}
+              {/* PG cost overlay */}
+              {hasPGCostLine && (
+                <Line
+                  type="monotone"
+                  dataKey="Total Costs"
+                  stroke="#ef4444"
+                  strokeWidth={2}
+                  dot
+                  connectNulls
+                />
+              )}
+              {selectedPG !== 'all' && selectedPG !== 'compare' && !isTotalBenefits && (
                 <Line
                   type="monotone"
                   dataKey={productGroups.find((p) => p.id === selectedPG)?.abbreviation || ''}
