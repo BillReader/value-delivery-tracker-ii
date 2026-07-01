@@ -100,6 +100,20 @@ export default function DashboardPage() {
       }
       assignmentLookup.get(a.initiative_id)!.add(a.product_group_id)
     })
+    // Pre-calculate portfolio-level ROI from dollar totals
+    // Find Total Benefits and Annual Projected Costs initiatives
+    const benefitsInit = (initiatives || []).find((i: any) => i.name.includes('Total Benefits'))
+    const costsInit = (initiatives || []).find((i: any) => i.name.includes('Projected Costs'))
+    let portfolioROI: number | null = null
+    if (benefitsInit && costsInit) {
+      const benefitsEntries = entryLookup.get(benefitsInit.id) || new Map()
+      const costsEntries = entryLookup.get(costsInit.id) || new Map()
+      const totalBenefits = Array.from(benefitsEntries.values()).filter((v): v is number => v !== null && !isNaN(v)).reduce((s, v) => s + v, 0)
+      const totalCosts = Array.from(costsEntries.values()).filter((v): v is number => v !== null && !isNaN(v)).reduce((s, v) => s + v, 0)
+      if (totalCosts > 0) {
+        portfolioROI = (totalBenefits - totalCosts) / totalCosts
+      }
+    }
     // Build heatmap
     const heatmap: HeatmapCell[] = (initiatives || [])
       .sort((a: any, b: any) => 
@@ -116,11 +130,17 @@ export default function DashboardPage() {
           }
         })
         const validValues = Object.values(values).filter((v): v is number => v !== null && !isNaN(v))
-        const aggregate = validValues.length > 0
-          ? init.metric_type === 'dollar'
-            ? validValues.reduce((s, v) => s + v, 0)
-            : validValues.reduce((s, v) => s + v, 0) / validValues.length
-          : null
+        let aggregate: number | null = null
+        if (validValues.length > 0) {
+          if (init.metric_type === 'dollar') {
+            aggregate = validValues.reduce((s, v) => s + v, 0)
+          } else if (init.metric_type === 'roi' && portfolioROI !== null) {
+            // Use portfolio-level ROI calculated from dollar totals
+            aggregate = portfolioROI
+          } else {
+            aggregate = validValues.reduce((s, v) => s + v, 0) / validValues.length
+          }
+        }
         return {
           initiative_id: init.id,
           initiative_name: init.name,
