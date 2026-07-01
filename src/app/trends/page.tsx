@@ -174,13 +174,15 @@ export default function TrendsPage() {
   const isDollar = selectedInit?.metric_type === 'dollar'
   const isROI = selectedInit?.metric_type === 'roi'
   const isTotalBenefits = selectedInit?.category_name === 'Direct Financial Impact' && (selectedInit?.name.includes('Total Benefits') || false)
+  const isCustomerProfile = selectedInit?.category_name === 'Customer Profile System'
+  const pctDecimals = isCustomerProfile ? 2 : 0
   // Determine which cost line key is in use
   const hasSSDACostLine = chartData.some((d) => d['SSDA Total Costs'] !== undefined)
   const hasPGCostLine = chartData.some((d) => d['Total Costs'] !== undefined)
   const hasCostLine = hasSSDACostLine || hasPGCostLine
   // Format Y axis ticks based on metric type
   function formatYAxis(v: number): string {
-    if (isPercentage || isROI) return `${(v * 100).toFixed(0)}%`
+    if (isPercentage || isROI) return `${(v * 100).toFixed(pctDecimals)}%`
     if (isDollar) {
       if (Math.abs(v) >= 1_000_000_000) return `$${(v / 1_000_000_000).toFixed(1)}B`
       if (Math.abs(v) >= 1_000_000) return `$${(v / 1_000_000).toFixed(0)}M`
@@ -192,7 +194,7 @@ export default function TrendsPage() {
   // Format tooltip values
   function formatTooltipValue(value: any): string {
     if (value === null || value === undefined) return '-'
-    if (isPercentage || isROI) return `${(value * 100).toFixed(1)}%`
+    if (isPercentage || isROI) return `${(value * 100).toFixed(pctDecimals)}%`
     if (isDollar) return `$${value.toLocaleString()}`
     return value.toLocaleString()
   }
