@@ -397,7 +397,7 @@ export default function DataEntryPage() {
                             )}
                           </td>
                           <td className="text-center px-3 py-3 text-gray-500">
-                            {formatValue(priorEntry?.value ?? null, init.metric_type)}
+                            {formatValue(priorEntry?.value ?? null, init.metric_type, init.category_name === 'Customer Profile System' ? 2 : 0)}
                           </td>
                           <td className="text-center px-3 py-3">
                             {isROI ? (
@@ -416,7 +416,7 @@ export default function DataEntryPage() {
                                   value={
                                     currentEntry?.value !== null && currentEntry?.value !== undefined
                                       ? init.metric_type === 'percentage' || init.metric_type === 'roi'
-                                        ? (currentEntry.value * 100).toFixed(0)
+                                        ? (currentEntry.value * 100).toFixed(init.category_name === 'Customer Profile System' ? 2 : 0)
                                         : init.metric_type === 'dollar'
                                           ? currentEntry.value.toString()
                                           : currentEntry.value.toString()
