@@ -10,4 +10,4 @@ const config: Config = {
     extend: {
       colors: {
         'status-green': '#22c55e',
-        'status-yellow
+        '
