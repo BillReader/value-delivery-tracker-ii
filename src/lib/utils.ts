@@ -52,3 +52,33 @@ export function formatValue(
       return value.toString()
   }
 }
+/**
+ * Get the CSS classes for a status color.
+ */
+export function getStatusClasses(status: StatusColor): string {
+  switch (status) {
+    case 'green':
+      return 'bg-status-green text-white'
+    case 'yellow':
+      return 'bg-status-yellow text-black'
+    case 'red':
+      return 'bg-status-red text-white'
+    case 'gray':
+      return 'bg-status-gray text-white'
+  }
+}
+/**
+ * Get a dot/badge for inline status display.
+ */
+export function getStatusDotClass(status: StatusColor): string {
+  switch (status) {
+    case 'green':
+      return 'bg-status-green'
+    case 'yellow':
+      return 'bg-status-yellow'
+    case 'red':
+      return 'bg-status-red'
+    case 'gray':
+      return 'bg-status-gray'
+  }
+}
