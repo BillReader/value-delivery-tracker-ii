@@ -194,23 +194,37 @@ export default function DataEntryPage() {
   // Save all entries
   async function saveEntries() {
     setSaving(true)
-    const entries = Array.from(currentEntries.values()).filter(
+    const entriesToSave = Array.from(currentEntries.values()).filter(
       (e) => e.value !== null || e.notes !== null
     )
-    for (const entry of entries) {
-      await supabase
+    for (const entry of entriesToSave) {
+      // Try update first (works with partial unique indexes)
+      const { data: updated } = await supabase
         .from('monthly_entries')
-        .upsert({
-          initiative_id: entry.initiative_id,
-          product_group_id: selectedPG,
-          month: selectedMonth,
-          year: CURRENT_YEAR,
+        .update({
           value: entry.value,
           notes: entry.notes,
           updated_at: new Date().toISOString(),
-        }, {
-          onConflict: 'initiative_id,product_group_id,month,year'
         })
+        .eq('initiative_id', entry.initiative_id)
+        .eq('product_group_id', selectedPG)
+        .eq('month', selectedMonth)
+        .eq('year', CURRENT_YEAR)
+        .select()
+      // If no existing row was updated, insert a new one
+      if (!updated || updated.length === 0) {
+        await supabase
+          .from('monthly_entries')
+          .insert({
+            initiative_id: entry.initiative_id,
+            product_group_id: selectedPG,
+            month: selectedMonth,
+            year: CURRENT_YEAR,
+            value: entry.value,
+            notes: entry.notes,
+            updated_at: new Date().toISOString(),
+          })
+      }
     }
     setLastSaved(new Date().toLocaleTimeString())
     setSaving(false)
