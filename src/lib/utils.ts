@@ -41,7 +41,7 @@ export function formatValue(
     case 'percentage':
       return `${(value * 100).toFixed(percentDecimals)}%`
     case 'dollar':
-      if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(2)}M`
+      if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}M`
       if (value >= 1_000) return `$${(value / 1_000).toFixed(0)}K`
       return `$${value.toFixed(0)}`
     case 'roi':
@@ -89,3 +89,4 @@ export const MONTHS = [
   'July', 'August', 'September', 'October', 'November', 'December'
 ] as const
 export const CURRENT_YEAR = 2026
+Last line: export const CURRENT_YEAR = 2026
