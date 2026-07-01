@@ -82,3 +82,8 @@ export function getStatusDotClass(status: StatusColor): string {
       return 'bg-status-gray'
   }
 }
+export const MONTHS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'
+] as const
+export const CURRENT_YEAR = 2026
