@@ -89,4 +89,3 @@ export const MONTHS = [
   'July', 'August', 'September', 'October', 'November', 'December'
 ] as const
 export const CURRENT_YEAR = 2026
-Last line: export const CURRENT_YEAR = 2026
