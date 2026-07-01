@@ -29,15 +29,17 @@ export function calculateAggregate(values: (number | null)[]): number | null {
 }
 /**
  * Format a value based on its metric type for display.
+ * percentDecimals overrides decimal places for percentage types (default 0).
  */
 export function formatValue(
   value: number | null,
-  metricType: 'percentage' | 'dollar' | 'roi' | 'count' | 'score'
+  metricType: 'percentage' | 'dollar' | 'roi' | 'count' | 'score',
+  percentDecimals: number = 0
 ): string {
   if (value === null) return '-'
   switch (metricType) {
     case 'percentage':
-      return `${(value * 100).toFixed(0)}%`
+      return `${(value * 100).toFixed(percentDecimals)}%`
     case 'dollar':
       if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(2)}M`
       if (value >= 1_000) return `$${(value / 1_000).toFixed(0)}K`
