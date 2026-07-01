@@ -47,7 +47,7 @@ export function formatValue(
     case 'count':
       return value.toLocaleString()
     case 'score':
-      return value.toFixed(1)
+      return value.toFixed(0)
     default:
       return value.toString()
   }
