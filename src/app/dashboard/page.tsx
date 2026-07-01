@@ -114,7 +114,9 @@ export default function DashboardPage() {
         })
         const validValues = Object.values(values).filter((v): v is number => v !== null)
         const aggregate = validValues.length > 0
-          ? validValues.reduce((s, v) => s + v, 0) / validValues.length
+          ? init.metric_type === 'dollar'
+            ? validValues.reduce((s, v) => s + v, 0)
+            : validValues.reduce((s, v) => s + v, 0) / validValues.length
           : null
         return {
           initiative_id: init.id,
