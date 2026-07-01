@@ -65,26 +65,29 @@ export default function DashboardPage() {
       .eq('month', selectedMonth)
       .eq('year', CURRENT_YEAR)
     const goalMap = new Map<string, number | null>()
-    goalData?.forEach((g) => goalMap.set(g.initiative_id, g.target_value))
+    goalData?.forEach((g) => goalMap.set(g.initiative_id, g.target_value !== null ? Number(g.target_value) : null))
     // Load thresholds
     const { data: thresholdData } = await supabase
       .from('initiative_thresholds')
       .select('initiative_id, green_min, yellow_min')
     const thresholdMap = new Map<string, { green_min: number; yellow_min: number }>()
-    thresholdData?.forEach((t) => thresholdMap.set(t.initiative_id, { green_min: t.green_min, yellow_min: t.yellow_min }))
-    // Load all entries for this month
+    thresholdData?.forEach((t) => thresholdMap.set(t.initiative_id, { green_min: Number(t.green_min), yellow_min: Number(t.yellow_min) }))
+    // Load all PG entries for this month (exclude admin entries where product_group_id is null)
     const { data: entryData } = await supabase
       .from('monthly_entries')
       .select('initiative_id, product_group_id, value')
       .eq('month', selectedMonth)
       .eq('year', CURRENT_YEAR)
+      .not('product_group_id', 'is', null)
     // Build entry lookup: initiative_id -> { pg_id -> value }
+    // Use Number() to handle PostgREST returning NUMERIC as strings
     const entryLookup = new Map<string, Map<string, number | null>>()
     entryData?.forEach((e) => {
       if (!entryLookup.has(e.initiative_id)) {
         entryLookup.set(e.initiative_id, new Map())
       }
-      entryLookup.get(e.initiative_id)!.set(e.product_group_id, e.value)
+      const numValue = e.value !== null && e.value !== undefined ? Number(e.value) : null
+      entryLookup.get(e.initiative_id)!.set(e.product_group_id, numValue)
     })
     // Load assignments
     const { data: assignmentData } = await supabase
@@ -112,7 +115,7 @@ export default function DashboardPage() {
             values[pg.id] = pgEntries.get(pg.id) ?? null
           }
         })
-        const validValues = Object.values(values).filter((v): v is number => v !== null)
+        const validValues = Object.values(values).filter((v): v is number => v !== null && !isNaN(v))
         const aggregate = validValues.length > 0
           ? init.metric_type === 'dollar'
             ? validValues.reduce((s, v) => s + v, 0)
