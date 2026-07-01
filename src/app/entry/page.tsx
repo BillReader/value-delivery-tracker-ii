@@ -233,17 +233,30 @@ export default function DataEntryPage() {
   async function submitForMonth() {
     setSubmitting(true)
     await saveEntries()
-    await supabase
+    const submissionData = {
+      product_group_id: selectedPG,
+      month: selectedMonth,
+      year: CURRENT_YEAR,
+      submitted_at: new Date().toISOString(),
+      submitted_by: productGroups.find(pg => pg.id === selectedPG)?.name || 'Unknown',
+    }
+    // Try update first
+    const { data: updated } = await supabase
       .from('submissions')
-      .upsert({
-        product_group_id: selectedPG,
-        month: selectedMonth,
-        year: CURRENT_YEAR,
-        submitted_at: new Date().toISOString(),
-        submitted_by: productGroups.find(pg => pg.id === selectedPG)?.name || 'Unknown',
-      }, {
-        onConflict: 'product_group_id,month,year'
+      .update({
+        submitted_at: submissionData.submitted_at,
+        submitted_by: submissionData.submitted_by,
       })
+      .eq('product_group_id', selectedPG)
+      .eq('month', selectedMonth)
+      .eq('year', CURRENT_YEAR)
+      .select()
+    // If no existing row, insert
+    if (!updated || updated.length === 0) {
+      await supabase
+        .from('submissions')
+        .insert(submissionData)
+    }
     setIsSubmitted(true)
     setSubmitting(false)
   }
@@ -329,10 +342,18 @@ export default function DataEntryPage() {
             </button>
             <button
               onClick={submitForMonth}
-              disabled={submitting}
-              className="px-4 py-2 bg-ford-blue text-white rounded-md text-sm hover:bg-ford-blue-light disabled:opacity-50"
+              disabled={submitting || isSubmitted}
+              className={`px-4 py-2 rounded-md text-sm font-medium ${
+                isSubmitted
+                  ? 'bg-green-600 text-white cursor-default'
+                  : 'bg-ford-blue text-white hover:bg-ford-blue-light disabled:opacity-50'
+              }`}
             >
-              {submitting ? 'Submitting...' : `Submit for ${MONTHS[selectedMonth - 1]}`}
+              {submitting
+                ? 'Submitting...'
+                : isSubmitted
+                ? `Submitted for ${MONTHS[selectedMonth - 1]}`
+                : `Submit for ${MONTHS[selectedMonth - 1]}`}
             </button>
           </div>
         )}
